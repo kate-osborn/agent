@@ -45,7 +45,7 @@ type NginxBinary interface {
 	GetNginxDetailsMapFromProcesses(nginxProcesses []Process) map[string]*proto.NginxDetails
 	UpdateNginxDetailsFromProcesses(nginxProcesses []Process)
 	WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApply, error)
-	ReadConfig(path, nginxId, systemId string) (*proto.NginxConfig, error)
+	ReadConfig(path, nginxId, systemId string, ignoreDirectives []string) (*proto.NginxConfig, error)
 	UpdatedAccessLogs() (bool, map[string]string)
 	UpdatedErrorLogs() (bool, map[string]string)
 	SetAccessLogUpdated(bool)
@@ -388,10 +388,19 @@ func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 	return configApply, nil
 }
 
-func (n *NginxBinaryType) ReadConfig(confFile, nginxId, systemId string) (*proto.NginxConfig, error) {
-	configPayload, err := sdk.GetNginxConfig(confFile, nginxId, systemId, n.config.AllowedDirectoriesMap)
-	if err != nil {
-		return nil, err
+func (n *NginxBinaryType) ReadConfig(confFile, nginxId, systemId string, ignoreDirectives []string) (*proto.NginxConfig, error) {
+	var configPayload *proto.NginxConfig
+	var err error
+	if len(ignoreDirectives) == 0 {
+		configPayload, err = sdk.GetNginxConfig(confFile, nginxId, systemId, n.config.AllowedDirectoriesMap)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		configPayload, err = sdk.GetSanitizedNginxConfig(confFile, nginxId, systemId, n.config.AllowedDirectoriesMap, ignoreDirectives)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// get access logs list for analysis

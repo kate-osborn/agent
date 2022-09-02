@@ -20,7 +20,7 @@ import (
 	filesSDK "github.com/nginx/agent/sdk/v2/files"
 	"github.com/nginx/agent/sdk/v2/proto"
 	"github.com/nginx/agent/sdk/v2/zip"
-	"github.com/nginxinc/nginx-go-crossplane"
+	crossplane "github.com/nginxinc/nginx-go-crossplane"
 )
 
 type DirectoryMap struct {
@@ -87,10 +87,31 @@ func GetNginxConfig(
 	systemId string,
 	allowedDirectories map[string]struct{},
 ) (*proto.NginxConfig, error) {
+	return getNginxConfig(confFile, nginxId, systemId, allowedDirectories, []string{})
+}
+
+func GetSanitizedNginxConfig(
+	confFile,
+	nginxId,
+	systemId string,
+	allowedDirectories map[string]struct{},
+	ignoreDirectives []string,
+) (*proto.NginxConfig, error) {
+	return getNginxConfig(confFile, nginxId, systemId, allowedDirectories, ignoreDirectives)
+}
+
+func getNginxConfig(
+	confFile,
+	nginxId,
+	systemId string,
+	allowedDirectories map[string]struct{},
+	ignoreDirectives []string,
+) (*proto.NginxConfig, error) {
 	payload, err := crossplane.Parse(confFile,
 		&crossplane.ParseOptions{
 			SingleFile:         false,
 			StopParsingOnError: true,
+			IgnoreDirectives:   ignoreDirectives,
 		},
 	)
 	if err != nil {

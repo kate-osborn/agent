@@ -20,6 +20,7 @@ import (
 const (
 	appProtectMetadataFilePath = "/etc/nms/app_protect_metadata.json"
 	nginxConfUploadFeature     = "nginx-config"
+	nginxSSLUploadFeature      = "nginx-ssl-config"
 )
 
 // Nginx is the metadata of our nginx binary
@@ -32,6 +33,7 @@ type Nginx struct {
 	config              *config.Config
 	isNAPEnabled        bool
 	isConfUploadEnabled bool
+	isSSLUploadEnabled  bool
 }
 
 type ConfigRollbackResponse struct {
@@ -138,7 +140,17 @@ func (n *Nginx) uploadConfig(config *proto.ConfigDescriptor, messageId string) e
 	}
 
 	log.Tracef("Reading config in directory %v for nginx instance %v", nginx.GetConfPath(), config.GetNginxId())
-	cfg, err := n.nginxBinary.ReadConfig(nginx.GetConfPath(), config.GetNginxId(), config.GetSystemId())
+	var ignoreDirectives []string
+	if !n.isSSLUploadEnabled {
+		ignoreDirectives = []string{
+			"ssl_certificate_key",
+			"ssl_client_certificate",
+			"ssl_password_file",
+			"ssl_stapling_file",
+			"ssl_trusted_certificate",
+		}
+	}
+	cfg, err := n.nginxBinary.ReadConfig(nginx.GetConfPath(), config.GetNginxId(), config.GetSystemId(), ignoreDirectives)
 	if err != nil {
 		log.Errorf("Unable to read nginx config %s: %v", nginx.GetConfPath(), err)
 		return err
@@ -389,13 +401,15 @@ func (n *Nginx) syncAgentConfigChange() {
 		n.isNAPEnabled = false
 	}
 
-	var isConfUploadEnabled bool
+	var isConfUploadEnabled, isSSLUploadEnabled bool
 	for _, feature := range conf.Features {
 		if feature == nginxConfUploadFeature {
 			isConfUploadEnabled = true
+		} else if feature == nginxSSLUploadFeature {
+			isSSLUploadEnabled = true
 		}
 	}
 	n.isConfUploadEnabled = isConfUploadEnabled
-
+	n.isSSLUploadEnabled = isSSLUploadEnabled
 	n.config = conf
 }
