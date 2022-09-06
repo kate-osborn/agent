@@ -61,7 +61,7 @@ func (m *MockNginxBinary) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 	return confApply, args.Error(1)
 }
 
-func (m *MockNginxBinary) ReadConfig(path, nginxId, systemId string) (*proto.NginxConfig, error) {
+func (m *MockNginxBinary) ReadConfig(path, nginxId, systemId string, uploadSSL bool) (*proto.NginxConfig, error) {
 	args := m.Called(path, nginxId, systemId)
 	config := args.Get(0).(*proto.NginxConfig)
 	err := args.Error(1)

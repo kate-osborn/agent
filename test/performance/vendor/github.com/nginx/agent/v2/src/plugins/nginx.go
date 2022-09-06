@@ -23,14 +23,15 @@ const (
 
 // Nginx is the metadata of our nginx binary
 type Nginx struct {
-	messagePipeline     core.MessagePipeInterface
-	nginxBinary         core.NginxBinary
-	processes           []core.Process
-	env                 core.Environment
-	cmdr                client.Commander
-	config              *config.Config
-	isNAPEnabled        bool
-	isConfUploadEnabled bool
+	messagePipeline        core.MessagePipeInterface
+	nginxBinary            core.NginxBinary
+	processes              []core.Process
+	env                    core.Environment
+	cmdr                   client.Commander
+	config                 *config.Config
+	isNAPEnabled           bool
+	isConfUploadEnabled    bool
+	isSSLConfUploadEnabled bool
 }
 
 type ConfigRollbackResponse struct {
@@ -135,7 +136,7 @@ func (n *Nginx) uploadConfig(config *proto.ConfigDescriptor, messageId string) e
 	}
 
 	log.Tracef("Reading config in directory %v for nginx instance %v", nginx.GetConfPath(), config.GetNginxId())
-	cfg, err := n.nginxBinary.ReadConfig(nginx.GetConfPath(), config.GetNginxId(), config.GetSystemId())
+	cfg, err := n.nginxBinary.ReadConfig(nginx.GetConfPath(), config.GetNginxId(), config.GetSystemId(), n.isSSLConfUploadEnabled)
 	if err != nil {
 		log.Errorf("Unable to read nginx config %s: %v", nginx.GetConfPath(), err)
 		return err
@@ -387,6 +388,7 @@ func (n *Nginx) syncAgentConfigChange() {
 	}
 
 	n.isConfUploadEnabled = isConfUploadEnabled(conf)
+	n.isSSLConfUploadEnabled = isSSLConfUploadEnabled(conf)
 
 	n.config = conf
 }
@@ -394,6 +396,15 @@ func (n *Nginx) syncAgentConfigChange() {
 func isConfUploadEnabled(conf *config.Config) bool {
 	for _, feature := range conf.Features {
 		if feature == config.FeatureNginxConfig {
+			return true
+		}
+	}
+	return false
+}
+
+func isSSLConfUploadEnabled(conf *config.Config) bool {
+	for _, feature := range conf.Features {
+		if feature == config.FeatureNginxSSLConfig {
 			return true
 		}
 	}

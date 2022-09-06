@@ -45,7 +45,7 @@ type NginxBinary interface {
 	GetNginxDetailsMapFromProcesses(nginxProcesses []Process) map[string]*proto.NginxDetails
 	UpdateNginxDetailsFromProcesses(nginxProcesses []Process)
 	WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApply, error)
-	ReadConfig(path, nginxId, systemId string) (*proto.NginxConfig, error)
+	ReadConfig(path, nginxId, systemId string, uploadSSL bool) (*proto.NginxConfig, error)
 	UpdatedAccessLogs() (bool, map[string]string)
 	UpdatedErrorLogs() (bool, map[string]string)
 	SetAccessLogUpdated(bool)
@@ -388,8 +388,18 @@ func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 	return configApply, nil
 }
 
-func (n *NginxBinaryType) ReadConfig(confFile, nginxId, systemId string) (*proto.NginxConfig, error) {
-	configPayload, err := sdk.GetNginxConfig(confFile, nginxId, systemId, n.config.AllowedDirectoriesMap)
+func (n *NginxBinaryType) ReadConfig(confFile, nginxId, systemId string, uploadSSL bool) (*proto.NginxConfig, error) {
+	ignoreDirectives := []string{}
+	if !uploadSSL {
+		ignoreDirectives = []string{
+			"ssl_certificate_key",
+			"ssl_client_certificate",
+			"ssl_password_file",
+			"ssl_stapling_file",
+			"ssl_trusted_certificate",
+		}
+	}
+	configPayload, err := sdk.GetSanitizedNginxConfig(confFile, nginxId, systemId, n.config.AllowedDirectoriesMap, ignoreDirectives)
 	if err != nil {
 		return nil, err
 	}

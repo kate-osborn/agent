@@ -93,7 +93,7 @@ func BenchmarkGetConfigFiles(b *testing.B) {
 	}
 }
 
-//BenchmarkReadConfig benchmarks reading nginx config from disk and generating the nginxConfig struct
+// BenchmarkReadConfig benchmarks reading nginx config from disk and generating the nginxConfig struct
 func BenchmarkReadConfig(b *testing.B) {
 	err := generateCertificate()
 	if err != nil {
@@ -109,7 +109,7 @@ func BenchmarkReadConfig(b *testing.B) {
 				var err error
 				var nginxConfig *proto.NginxConfig
 				for n := 0; n < b.N; n++ {
-					nginxConfig, err = binary.ReadConfig(config, "", "")
+					nginxConfig, err = binary.ReadConfig(config, "", "", true)
 				}
 				require.NoError(bb, err)
 				require.NotNil(bb, nginxConfig, "NginxConfig read in should not be nil")
@@ -122,7 +122,7 @@ func BenchmarkReadConfig(b *testing.B) {
 	}
 }
 
-//BenchmarkZipConfig benchmarks the zipping of the contents of nginx config into ZippedFile struct
+// BenchmarkZipConfig benchmarks the zipping of the contents of nginx config into ZippedFile struct
 func BenchmarkZipConfig(b *testing.B) {
 	err := generateCertificate()
 	if err != nil {
