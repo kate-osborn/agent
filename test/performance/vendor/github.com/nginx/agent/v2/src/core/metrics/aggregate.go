@@ -3,8 +3,12 @@ package metrics
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
+	"runtime"
 
+	"github.com/VictoriaMetrics/metrics"
+	"github.com/google/martian/log"
 	"github.com/nginx/agent/sdk/v2/checksum"
 	"github.com/nginx/agent/sdk/v2/proto"
 )
@@ -63,11 +67,7 @@ func GenerateMetricsReport(metricsCollections Collections) *proto.MetricsReport 
 	results := make([]*proto.StatsEntity, 0, 200)
 
 	for _, metricsPerDimension := range metricsCollections.Data {
-		simpleMetrics := getAggregatedSimpleMetric(metricsCollections.Count, metricsPerDimension.RunningSumMap)
-		results = append(results, NewStatsEntity(
-			metricsPerDimension.Dimensions,
-			simpleMetrics,
-		))
+		results = append(results, getAggregatedSimpleMetric(metricsCollections.Count, metricsPerDimension.RunningSumMap, metricsPerDimension.Dimensions))
 	}
 
 	return &proto.MetricsReport{
@@ -77,8 +77,7 @@ func GenerateMetricsReport(metricsCollections Collections) *proto.MetricsReport 
 	}
 }
 
-func getAggregatedSimpleMetric(count int, internalMap map[string]float64) (simpleMetrics []*proto.SimpleMetric) {
-
+func getAggregatedSimpleMetric(count int, internalMap map[string]float64, dimensions []*proto.Dimension) (*proto.StatsEntity) {
 	// The Catalogs is source of truth of what kind of calculation should apply to the individual metric
 	// TODO retrieve this info from Catalog or read from config file
 	calcFn := map[string]MetricsHandler{
@@ -313,9 +312,23 @@ func getAggregatedSimpleMetric(count int, internalMap map[string]float64) (simpl
 		regexp.MustCompile(`slab.slots.*.used`):  avg,
 	}
 
+	simpleMetrics := []*proto.SimpleMetric{}
+	s := "{"
+	for _, dimension := range dimensions {
+		s = s + fmt.Sprintf(`%s=%q,`, dimension.Name, dimension.Value)
+	}
+	s = s[:len(s)-len(",")] + "}"
+
+	log.Errorf("Dimensions!!!!!!!!! ==== %s", s)
+
 	for name, value := range internalMap {
 		if calculation, ok := calcFn[name]; ok {
 			aggegatedValue := calculation(value, count)
+			if runtime.FuncForPC(reflect.ValueOf(calculation).Pointer()).Name() == "avg" {
+				metrics.GetOrCreateGauge(name + s, func() float64 {return aggegatedValue})
+			} else {
+				metrics.GetOrCreateFloatCounter(name + s).Add(aggegatedValue)
+			}
 
 			// Only aggregate metrics when the aggregation method is defined
 			simpleMetrics = append(simpleMetrics, &proto.SimpleMetric{
@@ -326,6 +339,11 @@ func getAggregatedSimpleMetric(count int, internalMap map[string]float64) (simpl
 			for reg, calculation := range variableMetrics {
 				if reg.MatchString(name) {
 					result := calculation(value, count)
+					if runtime.FuncForPC(reflect.ValueOf(calculation).Pointer()).Name() == "avg" {
+						metrics.GetOrCreateGauge(name, func() float64 {return result})
+					} else {
+						metrics.GetOrCreateFloatCounter(name).Add(result)
+					}
 
 					simpleMetrics = append(simpleMetrics, &proto.SimpleMetric{
 						Name:  name,
@@ -336,8 +354,7 @@ func getAggregatedSimpleMetric(count int, internalMap map[string]float64) (simpl
 		}
 	}
 
-	return simpleMetrics
-
+	return NewStatsEntity(dimensions, simpleMetrics)
 }
 
 func sum(value float64, count int) float64 {

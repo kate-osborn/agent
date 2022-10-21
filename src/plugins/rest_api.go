@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/nginx/agent/sdk/v2"
 	"github.com/nginx/agent/sdk/v2/proto"
 	"github.com/nginx/agent/v2/src/core"
@@ -40,6 +41,7 @@ type RestApi struct {
 	pipeline    core.MessagePipeInterface
 	nginxBinary core.NginxBinary
 	handler     *NginxHandler
+	reports     chan *proto.MetricsReport
 }
 
 func NewRestApi(config *config.Config, env core.Environment, nginxBinary core.NginxBinary) *RestApi {
@@ -82,6 +84,7 @@ func (r *RestApi) createHttpServer()  {
 	mux := http.NewServeMux()
     r.handler = &NginxHandler{r.config, r.env, r.pipeline, r.nginxBinary, make(chan *proto.Command_NginxConfigResponse, 1)}
     mux.Handle("/nginx/", r.handler)
+    mux.Handle("/metrics", handle(metricsPage))
 
 	log.Info("Starting REST API HTTP server")
 
@@ -90,9 +93,22 @@ func (r *RestApi) createHttpServer()  {
         Handler:  mux,
     }
 
-	if err := server.ListenAndServeTLS("/home/ubuntu/server.crt", "/home/ubuntu/server.key"); err != nil {
+	if err := server.ListenAndServe(); err != nil {
         log.Fatalf("error listening to port: %v", err)
     }
+	// if err := server.ListenAndServeTLS("/home/ubuntu/server.crt", "/home/ubuntu/server.key"); err != nil {
+    //     log.Fatalf("error listening to port: %v", err)
+    // }
+}
+
+func handle(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r)
+	}
+}
+
+func metricsPage(w http.ResponseWriter, r *http.Request) {
+	metrics.WritePrometheus(w, true)
 }
 
 func (h *NginxHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

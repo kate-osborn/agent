@@ -36,6 +36,8 @@ require (
 )
 
 require (
+	github.com/VictoriaMetrics/metrics v1.22.2
+	github.com/google/martian v2.1.0+incompatible
 	github.com/nginx/agent/sdk/v2 v2.0.0-00010101000000-000000000000
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -63,6 +65,8 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/trivago/tgo v1.0.7 // indirect
+	github.com/valyala/fastrand v1.1.0 // indirect
+	github.com/valyala/histogram v1.2.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220805013720-a33c5aa5df48 // indirect
