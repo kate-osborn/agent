@@ -269,6 +269,9 @@ func (n *NginxBinaryType) Stop(processId, bin string) error {
 }
 
 func ensureFilesAllowed(files []*proto.File, allowList map[string]struct{}, path string) error {
+	log.Errorf("files %v", files)
+	log.Errorf("allowList %v", allowList)
+	log.Errorf("path %v", path)
 	for _, file := range files {
 		filename := file.Name
 		if !filepath.IsAbs(filename) {
@@ -297,7 +300,7 @@ func hasConfPath(files []*proto.File, confPath string) bool {
 }
 
 func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApply, error) {
-	log.Tracef("Writing config: %+v\n", config)
+	log.Errorf("Writing config: %+v\n", config)
 	details, ok := n.nginxDetailsMap[config.ConfigData.NginxId]
 	if !ok || details == nil {
 		return nil, fmt.Errorf("NGINX instance %s not found", config.ConfigData.NginxId)
@@ -317,6 +320,7 @@ func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 		return nil, fmt.Errorf("config directory %s not allowed", filepath.Dir(details.ConfPath))
 	}
 
+	log.Error("GetNginxConfigFiles")
 	confFiles, auxFiles, err := sdk.GetNginxConfigFiles(config)
 	if err != nil {
 		return nil, err
@@ -333,8 +337,9 @@ func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 		return nil, err
 	}
 
+	log.Errorf("ensureFilesAllowed: %v", config.GetZaux())
 	// Ensure all aux files are within the allowed list directories.
-	if err := ensureFilesAllowed(auxFiles, n.config.AllowedDirectoriesMap, config.Zaux.RootDirectory); err != nil {
+	if err := ensureFilesAllowed(auxFiles, n.config.AllowedDirectoriesMap, config.GetZaux().GetRootDirectory()); err != nil {
 		return nil, err
 	}
 
@@ -349,6 +354,7 @@ func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 		return nil, err
 	}
 
+	log.Error("WriteFiles")
 	// TODO: return to Control Plane that there was a rollback
 	err = n.env.WriteFiles(configApply, confFiles, filepath.Dir(details.ConfPath), n.config.AllowedDirectoriesMap)
 	if err != nil {
@@ -359,6 +365,7 @@ func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 
 	if len(auxFiles) > 0 {
 		auxPath := config.Zaux.RootDirectory
+		log.Error("WriteFiles aux")
 		err = n.env.WriteFiles(configApply, auxFiles, auxPath, n.config.AllowedDirectoriesMap)
 		if err != nil {
 			log.Warnf("Auxiliary files write failed: %s", err)
@@ -366,9 +373,11 @@ func (n *NginxBinaryType) WriteConfig(config *proto.NginxConfig) (*sdk.ConfigApp
 		}
 	}
 
+	log.Error("getDirectoryMapDiff")
 	// Delete files that are not in the directory map
 	filesToDelete := getDirectoryMapDiff(systemNginxConfig.DirectoryMap.Directories, config.DirectoryMap.Directories)
 
+	log.Errorf("filesToDelete: %v", filesToDelete)
 	fileDeleted := make(map[string]struct{})
 	for _, file := range filesToDelete {
 		log.Infof("Deleting file: %s", file)

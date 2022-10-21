@@ -40,4 +40,5 @@ const (
 	ConfigRollbackResponse               = "config.rollback.response"
 	NginxAppProtectDetailsGenerated      = "nap.details.generated"
 	EnableExtension                      = "enable.extension"
+	RestAPIConfigApplyResponse           = "rest.api.config.apply.response"
 )

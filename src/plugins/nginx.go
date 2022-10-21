@@ -78,6 +78,10 @@ func (n *Nginx) Process(message *core.Message) {
 		switch cmd := message.Data().(type) {
 		case *proto.Command:
 			n.processCmd(cmd)
+		case *proto.NginxConfig:
+			log.Error("writeConfigAndReloadNginx!!!!!!!")
+			status := n.writeConfigAndReloadNginx("123", cmd)
+			n.messagePipeline.Process(core.NewMessage(core.RestAPIConfigApplyResponse, status))
 		}
 	case core.NginxConfigUpload:
 		switch cfg := message.Data().(type) {
@@ -214,87 +218,13 @@ func (n *Nginx) processCmd(cmd *proto.Command) {
 func (n *Nginx) applyConfig(cmd *proto.Command, cfg *proto.Command_NginxConfig) (status *proto.Command_NginxConfigResponse) {
 	log.Debugf("Applying config for message id, %s", cmd.GetMeta().MessageId)
 
-	status = &proto.Command_NginxConfigResponse{
-		NginxConfigResponse: &proto.NginxConfigResponse{
-			Status:     newOKStatus("config applied successfully").CmdStatus,
-			Action:     proto.NginxConfigAction_APPLY,
-			ConfigData: cfg.NginxConfig.ConfigData,
-		},
-	}
-
 	config, err := n.cmdr.Download(context.Background(), cmd.GetMeta())
 	if err != nil {
 		status.NginxConfigResponse.Status = newErrStatus("Config apply failed (download): " + err.Error()).CmdStatus
 		return status
 	}
 
-	if config.GetConfigData().GetNginxId() == "" {
-		status.NginxConfigResponse.Status = newErrStatus(fmt.Sprintf("Config apply failed (preflight): no Nginx Id in ConfigDescriptor %v", config.GetConfigData())).CmdStatus
-		return status
-	}
-
-	log.Debugf("Disabling file watcher")
-	n.messagePipeline.Process(core.NewMessage(core.FileWatcherEnabled, false))
-
-	nginx := n.nginxBinary.GetNginxDetailsByID(config.GetConfigData().GetNginxId())
-
-	if nginx == nil || nginx == (&proto.NginxDetails{}) {
-		message := fmt.Sprintf("Config apply failed (preflight): no Nginx instance found for %v", config.GetConfigData().GetNginxId())
-		return n.handleErrorStatus(status, message)
-	}
-
-	configApply, err := n.nginxBinary.WriteConfig(config)
-	if err != nil {
-		if configApply != nil {
-			succeeded := true
-
-			if rollbackErr := configApply.Rollback(err); rollbackErr != nil {
-				log.Errorf("Config rollback failed: %v", rollbackErr)
-				succeeded = false
-			}
-
-			configRollbackResponse := ConfigRollbackResponse{
-				succeeded:     succeeded,
-				correlationId: cmd.Meta.MessageId,
-				timestamp:     types.TimestampNow(),
-				nginxDetails:  nginx,
-			}
-			n.messagePipeline.Process(core.NewMessage(core.ConfigRollbackResponse, configRollbackResponse))
-		}
-
-		message := fmt.Sprintf("Config apply failed (write): " + err.Error())
-		return n.handleErrorStatus(status, message)
-	}
-
-	err = n.nginxBinary.ValidateConfig(nginx.NginxId, nginx.ProcessPath, nginx.ConfPath, config, configApply)
-	if err == nil {
-		_, err = n.nginxBinary.ReadConfig(nginx.GetConfPath(), config.GetConfigData().GetNginxId(), n.env.GetSystemUUID())
-	}
-	if err != nil {
-		if configApply != nil {
-			succeeded := true
-
-			if rollbackErr := configApply.Rollback(err); rollbackErr != nil {
-				log.Errorf("Config rollback failed: %v", rollbackErr)
-				succeeded = false
-			}
-
-			configRollbackResponse := ConfigRollbackResponse{
-				succeeded:     succeeded,
-				correlationId: cmd.Meta.MessageId,
-				timestamp:     types.TimestampNow(),
-				nginxDetails:  nginx,
-			}
-			n.messagePipeline.Process(core.NewMessage(core.ConfigRollbackResponse, configRollbackResponse))
-		}
-
-		message := fmt.Sprintf("Config apply failed (write): " + err.Error())
-		return n.handleErrorStatus(status, message)
-	} else if configApply != nil {
-		if err = configApply.Complete(); err != nil {
-			log.Errorf("Config complete failed: %v", err)
-		}
-	}
+	status = n.writeConfigAndReloadNginx(cmd.Meta.MessageId, config)
 
 	uploadResponse := &proto.Command_NginxConfigResponse{
 		NginxConfigResponse: &proto.NginxConfigResponse{
@@ -319,22 +249,113 @@ func (n *Nginx) applyConfig(cmd *proto.Command, cfg *proto.Command_NginxConfig) 
 	uploadResponseCommand.Data = uploadResponse
 
 	n.messagePipeline.Process(core.NewMessage(core.CommResponse, uploadResponseCommand))
-	log.Debug("Enabling file watcher")
-	n.messagePipeline.Process(core.NewMessage(core.FileWatcherEnabled, true))
+
+	log.Debug("Config Apply Complete")
+	return status
+}
+
+func (n *Nginx) writeConfigAndReloadNginx(messageId string, config *proto.NginxConfig) (*proto.Command_NginxConfigResponse) {
+	status := &proto.Command_NginxConfigResponse{
+		NginxConfigResponse: &proto.NginxConfigResponse{
+			Status:     newOKStatus("config applied successfully").CmdStatus,
+			Action:     proto.NginxConfigAction_APPLY,
+			ConfigData: config.ConfigData,
+		},
+	}
+
+	if config.GetConfigData().GetNginxId() == "" {
+		status.NginxConfigResponse.Status = newErrStatus(fmt.Sprintf("Config apply failed (preflight): no Nginx Id in ConfigDescriptor %v", config.GetConfigData())).CmdStatus
+		return status
+	}
+
+	log.Errorf("config.GetConfigData().GetNginxId()!!!!!!! %s", config.GetConfigData().GetNginxId())
+
+	log.Errorf("Disabling file watcher")
+	n.messagePipeline.Process(core.NewMessage(core.FileWatcherEnabled, false))
+
+	nginx := n.nginxBinary.GetNginxDetailsByID(config.GetConfigData().GetNginxId())
+
+	log.Errorf("GetNginxDetailsByID!!!!!")
+
+	if nginx == nil || nginx == (&proto.NginxDetails{}) {
+		message := fmt.Sprintf("Config apply failed (preflight): no Nginx instance found for %v", config.GetConfigData().GetNginxId())
+		return n.handleErrorStatus(status, message)
+	}
+
+	log.Errorf("WriteConfig start!!!!! %v", config)
+	configApply, err := n.nginxBinary.WriteConfig(config)
+	if err != nil {
+		if configApply != nil {
+			succeeded := true
+
+			if rollbackErr := configApply.Rollback(err); rollbackErr != nil {
+				log.Errorf("Config rollback failed: %v", rollbackErr)
+				succeeded = false
+			}
+
+			configRollbackResponse := ConfigRollbackResponse{
+				succeeded:     succeeded,
+				correlationId: messageId,
+				timestamp:     types.TimestampNow(),
+				nginxDetails:  nginx,
+			}
+			n.messagePipeline.Process(core.NewMessage(core.ConfigRollbackResponse, configRollbackResponse))
+		}
+
+		message := fmt.Sprintf("Config apply failed (write): " + err.Error())
+		return n.handleErrorStatus(status, message)
+	}
+
+	log.Errorf("WriteConfig!!!!!")
+
+	err = n.nginxBinary.ValidateConfig(nginx.NginxId, nginx.ProcessPath, nginx.ConfPath, config, configApply)
+	log.Errorf("ValidateConfig!!!!!")
+	if err == nil {
+		_, err = n.nginxBinary.ReadConfig(nginx.GetConfPath(), config.GetConfigData().GetNginxId(), n.env.GetSystemUUID())
+		log.Errorf("ReadConfig!!!!!")
+	}
+	if err != nil {
+		if configApply != nil {
+			succeeded := true
+
+			if rollbackErr := configApply.Rollback(err); rollbackErr != nil {
+				log.Errorf("Config rollback failed: %v", rollbackErr)
+				succeeded = false
+			}
+
+			configRollbackResponse := ConfigRollbackResponse{
+				succeeded:     succeeded,
+				correlationId: messageId,
+				timestamp:     types.TimestampNow(),
+				nginxDetails:  nginx,
+			}
+			n.messagePipeline.Process(core.NewMessage(core.ConfigRollbackResponse, configRollbackResponse))
+		}
+
+		message := fmt.Sprintf("Config apply failed (write): " + err.Error())
+		return n.handleErrorStatus(status, message)
+	} else if configApply != nil {
+		if err = configApply.Complete(); err != nil {
+			log.Errorf("Config complete failed: %v", err)
+		}
+	}
 
 	reloadErr := n.nginxBinary.Reload(nginx.ProcessId, nginx.ProcessPath)
 	if reloadErr != nil {
 		status.NginxConfigResponse.Status = newErrStatus("Config apply failed (write): " + reloadErr.Error()).CmdStatus
 	}
-
+	log.Errorf("Reload!!!!!")
 	nginxReloadEventMeta := NginxReloadResponse{
 		succeeded:     reloadErr == nil,
-		correlationId: cmd.Meta.MessageId,
+		correlationId: messageId,
 		timestamp:     types.TimestampNow(),
 		nginxDetails:  nginx,
 	}
 	n.messagePipeline.Process(core.NewMessage(core.NginxReloadComplete, nginxReloadEventMeta))
-	log.Debug("Config Apply Complete")
+
+	log.Errorf("Enabling file watcher")
+	n.messagePipeline.Process(core.NewMessage(core.FileWatcherEnabled, true))
+
 	return status
 }
 

@@ -176,15 +176,16 @@ certs: ## Generate TLS certificates
 	cp ${CERTS_DIR}/client/ee.crt ${CERTS_DIR}/client.crt
 	cp ${CERTS_DIR}/client/ee.key ${CERTS_DIR}/client.key
 
-	scripts/mtls/gen_cnf.sh ca --cn 'server-ca.local' --state Cork --locality Cork --org NGINX --country IE --out ${CERTS_DIR}/server/conf
+	scripts/mtls/gen_cnf.sh ca --cn 'localhost' --state Cork --locality Cork --org NGINX --country IE --out ${CERTS_DIR}/server/conf
 	scripts/mtls/gen_cert.sh ca --config ${CERTS_DIR}/server/conf/ca.cnf --out ${CERTS_DIR}/server
 
-	scripts/mtls/gen_cnf.sh intermediate --cn 'server-int.local' --org NGINX --locality Cork --out ${CERTS_DIR}/server/conf
+	scripts/mtls/gen_cnf.sh intermediate --cn 'localhost' --org NGINX --locality Cork --out ${CERTS_DIR}/server/conf
 	scripts/mtls/gen_cert.sh intermediate --config ${CERTS_DIR}/server/conf/int.cnf --ca-cert ${CERTS_DIR}/server/ca.crt --ca-key ${CERTS_DIR}/server/ca.key --out ${CERTS_DIR}/server
 
-	scripts/mtls/gen_cnf.sh end-entity --cn 'tls.example.com' --san 'DNS.1=tls.example.com' --out ${CERTS_DIR}/server/conf
+	scripts/mtls/gen_cnf.sh end-entity --cn 'localhost' --san 'DNS.1=localhost' --out ${CERTS_DIR}/server/conf
 	scripts/mtls/gen_cert.sh end-entity --config ${CERTS_DIR}/server/conf/ee.cnf --ca-cert ${CERTS_DIR}/server/int.crt --ca-key ${CERTS_DIR}/server/int.key --out ${CERTS_DIR}/server
 
+	cat ${CERTS_DIR}/server/int.crt ${CERTS_DIR}/server/ca.crt > ${CERTS_DIR}/ca.pem
 	cp ${CERTS_DIR}/server/ee.crt ${CERTS_DIR}/server.crt
 	cp ${CERTS_DIR}/server/ee.key ${CERTS_DIR}/server.key
 
