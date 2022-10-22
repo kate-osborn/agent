@@ -89,7 +89,7 @@ func (r *RestApi) createHttpServer()  {
 	log.Info("Starting REST API HTTP server")
 
 	server := http.Server{
-        Addr:    ":9090",
+        Addr:    ":9091",
         Handler:  mux,
     }
 
