@@ -109,7 +109,7 @@ jobs:
         run: |
           echo "$INDIGO_GPG_AGENT" | base64 --decode > .key.asc
           make clean package
-      - name: Test install
+      - name: Test install and uninstall
         run: make test-install
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
