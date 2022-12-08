@@ -29,7 +29,7 @@ var (
 func TestAgentManualInstallUninstall(t *testing.T) {
 	expectedInstallLogMsgs := map[string]string{
 		"InstallFoundNginxAgent": "Found nginx-agent /usr/bin/nginx-agent",
-		"InstallAgentToRunAs":    "nginx-agent will be configured to run as same user", // only if nginx is installed and running
+		"InstallAgentToRunAs":    "nginx-agent will be configured to run as same user",
 		"InstallAgentSuccess":    "NGINX Agent package has been successfully installed.",
 		"InstallAgentStartCmd":   "sudo systemctl start nginx-agent",
 	}
