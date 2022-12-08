@@ -166,7 +166,7 @@ build-benchmark-docker: ## Build benchmark test docker image for NGINX Plus, nee
 
 # Install tests
 test-install: ## Run agent install test
-	AGENT_PACKAGE_FILE=${PWD}/${shell find ./build/packages/deb/*amd64.deb -type f} GOWORK=off CGO_ENABLED=0 go test -v ./test/install
+	AGENT_PACKAGE_FILE=${PWD}/${shell find ./build/packages/deb/*${LOCAL_ARCH}.deb -type f} GOWORK=off CGO_ENABLED=0 go test -v ./test/install
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Cert Generation                                                                                                 #
